@@ -12,6 +12,7 @@ const defaultState = () => ({
   todayXp: 0, todayDate: null, dailyGoal: 30,
   lessons: {}, items: {}, history: [], writing: {},
   accent: "en-GB", rate: 0.9, unlockUpTo: 0,
+  apiKey: "", aiModel: "claude-haiku-5-5",
 });
 let S = load();
 function load() {
@@ -329,12 +330,12 @@ let screen = "home";
 function go(name) {
   screen = name;
   if (currentRec) try { currentRec.abort(); } catch (e) {}
-  const withNav = ["home", "writing", "lexicon", "profile"].includes(name);
+  const withNav = ["home", "writing", "talk", "lexicon", "profile"].includes(name);
   nav.classList.toggle("hidden", !withNav);
   nav.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.nav === name));
   removeFooter();
   window.scrollTo(0, 0);
-  ({ home: renderHome, writing: renderWriting, lexicon: renderLexicon, profile: renderProfile, welcome: renderWelcome })[name]();
+  ({ home: renderHome, writing: renderWriting, talk: renderTalk, lexicon: renderLexicon, profile: renderProfile, welcome: renderWelcome })[name]();
 }
 nav.addEventListener("click", (e) => { const b = e.target.closest("[data-nav]"); if (b) go(b.dataset.nav); });
 
@@ -498,10 +499,12 @@ function grade(ui) {
       <h3>${ok ? (res.close ? "Presque parfait !" : praise) : "Réponse correcte :"}</h3>
       ${res.solution ? `<p>${res.solutionHtml || esc(res.solution)}</p>` : ""}
       ${res.note ? `<p style="font-weight:600;opacity:.85">${res.note}</p>` : ""}
+      ${res.ai && !(ok && !res.close) ? `<div id="aiout"></div>` : ""}
     </div>
     ${res.say ? `<button class="mini-speak" id="fbsay" title="Écouter">🔊</button>` : ""}
     <div class="grow"></div>
     <button class="btn ${ok ? "" : "red"}" id="cont" style="max-width:220px">Continuer</button></div>`;
+  if ($("#aiout")) aiButton($("#aiout"), () => res.ai);
   if (res.say) { $("#fbsay").onclick = () => speak(res.say); if (!ok || S.level <= 2) speak(res.say); }
   const cont = $("#cont");
   cont.focus();
@@ -720,6 +723,7 @@ function textResult(sentence, given, threshold) {
     solutionHtml: ok && sc === 1 ? esc(sentence.en) : highlightMissing(sentence.en, given),
     note: sc === 1 ? "" : ok ? "Petites différences : compare avec la phrase ci-dessus." : `Ta réponse : « ${esc(given)} »`,
     say: sentence.en,
+    ai: `French sentence: "${sentence.fr}"\nReference translation: "${sentence.en}"\nLearner's answer: "${given}"\nIs the learner's answer acceptable? Explain the mistakes.`,
   };
 }
 
@@ -785,6 +789,8 @@ function openWriting(t) {
       <p class="sub" style="margin-top:10px">Compare ta réponse avec le modèle : repère les tournures utiles et réécris ta version si tu veux.${first && score >= 50 ? " <b>+15 XP</b>" : ""}</p>
     </div>`;
     $("#saymodel").onclick = () => speak(t.model.replace(/\n/g, " "));
+    $("#fb .card").insertAdjacentHTML("beforeend", `<div id="aiw"></div>`);
+    aiButton($("#aiw"), () => `Writing task (in French): ${t.prompt}\nLearner's text:\n"""${text}"""\nCorrect it like a teacher: list the main mistakes, then give a corrected, natural professional version.`);
     $("#fb").scrollIntoView({ behavior: "smooth" });
   };
 }
@@ -840,6 +846,14 @@ function renderProfile() {
       <select id="accent"><option value="en-GB" ${S.accent === "en-GB" ? "selected" : ""}>Britannique (en-GB)</option><option value="en-US" ${S.accent === "en-US" ? "selected" : ""}>Américain (en-US)</option></select></div>
     <div class="field"><label>Vitesse de la voix : <span id="rv">${S.rate}</span></label>
       <input type="range" id="rate" min="0.6" max="1.2" step="0.1" value="${S.rate}" style="width:100%"></div>
+    <div class="card">
+      <h3>🤖 Correction par IA (Claude)</h3>
+      <p>Crée une clé sur console.anthropic.com (rubrique API Keys) et colle-la ici. Elle reste uniquement dans ce navigateur. Chaque correction coûte une fraction de centime avec Haiku.</p>
+      <div class="field" style="margin-top:12px"><label>Clé API</label>
+        <input type="password" id="apikey" placeholder="sk-ant-…" value="${esc(S.apiKey)}" autocomplete="off"></div>
+      <div class="field" style="margin:0"><label>Modèle</label>
+        <select id="aimodel">${Object.entries(AI_MODELS).map(([v, l]) => `<option value="${v}" ${v === S.aiModel ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    </div>
     <div class="stack" style="margin-top:24px">
       <button class="btn ghost" id="test">🔊 Tester la voix</button>
       <button class="btn blue" id="placement">Refaire le test de niveau</button>
@@ -848,6 +862,8 @@ function renderProfile() {
     ${!SR ? `<p class="sub" style="margin-top:16px">ℹ️ Ce navigateur ne gère pas la reconnaissance vocale : utilise Chrome ou Edge pour les exercices de prononciation.</p>` : ""}`;
   $("#level").onchange = (e) => { S.level = +e.target.value; S.history = []; save(); renderProfile(); };
   $("#goal").onchange = (e) => { S.dailyGoal = +e.target.value; save(); };
+  $("#apikey").onchange = (e) => { S.apiKey = e.target.value.trim(); save(); };
+  $("#aimodel").onchange = (e) => { S.aiModel = e.target.value; save(); };
   $("#accent").onchange = (e) => { S.accent = e.target.value; save(); speak("The aircraft is ready for release to service."); };
   $("#rate").oninput = (e) => { S.rate = +e.target.value; $("#rv").textContent = S.rate; save(); };
   $("#test").onclick = () => speak("Please find attached the inspection report for the composite flap.");
