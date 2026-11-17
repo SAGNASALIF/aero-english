@@ -12,7 +12,7 @@ const defaultState = () => ({
   todayXp: 0, todayDate: null, dailyGoal: 30,
   lessons: {}, items: {}, history: [], writing: {},
   accent: "en-GB", rate: 0.9, unlockUpTo: 0,
-  apiKey: "", aiModel: "claude-haiku-5-5",
+  apiKey: "", aiModel: "claude-haiku-5-5", toeic: [],
 });
 let S = load();
 function load() {
@@ -330,12 +330,12 @@ let screen = "home";
 function go(name) {
   screen = name;
   if (currentRec) try { currentRec.abort(); } catch (e) {}
-  const withNav = ["home", "writing", "talk", "lexicon", "profile"].includes(name);
+  const withNav = ["home", "writing", "talk", "lexicon", "profile", "toeic"].includes(name);
   nav.classList.toggle("hidden", !withNav);
   nav.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.nav === name));
   removeFooter();
   window.scrollTo(0, 0);
-  ({ home: renderHome, writing: renderWriting, talk: renderTalk, lexicon: renderLexicon, profile: renderProfile, welcome: renderWelcome })[name]();
+  ({ home: renderHome, writing: renderWriting, talk: renderTalk, toeic: renderToeic, lexicon: renderLexicon, profile: renderProfile, welcome: renderWelcome })[name]();
 }
 nav.addEventListener("click", (e) => { const b = e.target.closest("[data-nav]"); if (b) go(b.dataset.nav); });
 
@@ -414,6 +414,11 @@ function renderHome() {
       <div style="font-size:36px">🧠</div>
       <div class="grow"><h3>Révision intelligente</h3><p>Reprend les mots et phrases où tu fais des erreurs.</p></div>
       <button class="btn blue small" id="review">Réviser</button>
+    </div>
+    <div class="card row">
+      <div style="font-size:36px">🎯</div>
+      <div class="grow"><h3>Préparation TOEIC</h3><p>${S.toeic && S.toeic.length ? `Dernier score estimé : ${S.toeic[S.toeic.length - 1].total} / 990` : "Tests blancs chronométrés et entraînement par partie."}</p></div>
+      <button class="btn small" id="toeic">Ouvrir</button>
     </div>`;
   UNITS.forEach((u, i) => {
     const open = unitUnlocked(i), done = S.lessons[u.id] || 0;
@@ -435,6 +440,7 @@ function renderHome() {
   html += `<p class="sub" style="text-align:center;margin-top:30px">Termine 2 leçons d'une unité pour débloquer la suivante.</p>`;
   app.innerHTML = html;
   $("#review").onclick = () => startLesson("review");
+  $("#toeic").onclick = () => go("toeic");
   app.querySelectorAll(".node[data-unit]").forEach((b) => (b.onclick = () => startLesson(b.dataset.unit)));
 }
 
